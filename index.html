@@ -1,47 +1,497 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Field Dashboard</title>
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="?file=manifest">
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker
+      .register("?file=sw")
+      .then(reg => console.log("SW registered", reg))
+      .catch(err => console.error("SW failed", err));
+  }
+</script>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    .ticket { border: 1px solid #ccc; margin: 10px; padding: 10px; border-radius: 6px; }
+    :root {
+      --primary: #1976d2;
+      --primary-dark: #125a9c;
+      --bg: #f4f6f9;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      font-family: "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: #333;
+    }
+
+    /* Phone wrapper */
+    body {
+      display: flex;
+      justify-content: center;
+      background: var(--bg);
+    }
+    .app-wrapper {
+      width: 100%;
+      max-width: 420px;
+      min-height: 100vh;
+      background: white;
+      box-shadow: 0 0 12px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--primary);
+      color: white;
+      padding: 14px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    .container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+
+    /* Fullscreen login */
+    .login-box {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: stretch;
+      width: 100%;
+      padding: 20px;
+      background: white;
+      box-sizing: border-box;
+    }
+    .login-box h2 {
+      margin-bottom: 20px;
+      font-size: 22px;
+      color: var(--primary);
+      text-align: center;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 16px;
+      margin: 8px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(25,118,210,0.15);
+      outline: none;
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 16px;
+      margin: 8px 0;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 500;
+    }
+    .btn:hover { background: var(--primary-dark); }
+    .btn-secondary {
+      background: #e0e0e0;
+      color: #333;
+    }
+    .btn-secondary:hover { background: #c7c7c7; }
+
+    /* Cards */
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      padding: 15px;
+      margin-bottom: 12px;
+      width: 95%;
+      margin-left: auto;
+      margin-right: auto;
+      box-sizing: border-box;
+    }
+    .card h3 { margin: 0 0 6px; font-size: 16px; color: var(--primary); }
+    .card p { margin: 3px 0; font-size: 14px; color: #555; }
+
+    /* Dashboard stat cards */
+    .dashboard-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 10px;
+    }
+
+    .stat-card {
+      color: white;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: bold;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+      cursor: pointer;
+      transition: transform 0.1s ease;
+    }
+    .stat-card small {
+      display: block;
+      font-size: 14px;
+      margin-top: 6px;
+      opacity: 0.95;
+    }
+    .stat-card:active {
+      transform: scale(0.96);
+    }
+    .stat-blue   { background: #6374f3; }
+    .stat-green  { background: #1eb980; }
+
+    /* Spinner */
+    #spinner {
+      position: fixed; top:0; left:0; right:0; bottom:0;
+      background: rgba(0,0,0,0.3);
+      z-index: 999;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+    #spinner div {
+      border: 6px solid #f3f3f3;
+      border-top: 6px solid var(--primary);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
+    /* Toast */
+    #toast {
+      visibility: hidden;
+      max-width: 90%;
+      background: #323232;
+      color: #fff;
+      border-radius: 6px;
+      padding: 14px;
+      position: fixed;
+      top: 16px;
+      right: 5%;
+      z-index: 9999;
+      font-size: 15px;
+      opacity: 0;
+      transition: opacity 0.4s ease, top 0.4s ease;
+    }
+    #toast.show { visibility: visible; opacity: 1; top: 36px; }
+    #toast .title { font-weight: bold; margin-bottom: 4px; }
+
+    .hidden { display: none; }
+
+    @media (max-width: 480px) {
+      header { font-size: 16px; padding: 12px; }
+      input, .btn { font-size: 15px; padding: 14px; }
+      .stat-card { font-size: 20px; padding: 16px; }
+      .card h3 { font-size: 15px; }
+    }
   </style>
 </head>
 <body>
-  <h1>Field Engineer Tickets</h1>
-  <div id="tickets"></div>
+  <div class="app-wrapper">
+    <header>Field Engineer App</header>
+
+    <div class="container">
+      <!-- Spinner -->
+      <div id="spinner"><div></div></div>
+
+      <!-- Toast -->
+      <div id="toast"><div class="title"></div><div class="message"></div></div>
+
+      <!-- Login -->
+      <div class="login-box" id="login-box">
+  <!-- Logo -->
+  <div style="text-align:center; margin-bottom:20px;">
+    <img src="https://i.postimg.cc/XX63hBjY/cropped-Satellite-Netcom-Logo.webp" alt="Logo" style="max-width:250px; height:auto;">
+  </div>
+
+  <h2>Sign In</h2>
+  <input type="text" id="username" placeholder="Username">
+  <input type="password" id="password" placeholder="Password">
+  <button class="btn" onclick="login()">Login</button>
+  <p id="login-msg" style="color:red; font-size:14px;"></p>
+</div>
+
+
+      <!-- Dashboard -->
+      <div id="dashboard" class="hidden">
+        <h2 style="color:var(--primary); padding-left:10px;">Dashboard</h2>
+        <div class="dashboard-stats">
+          <div class="stat-card stat-blue" id="pendingCount" onclick="showTickets('pending')">
+            <span id="pendingNumber">0</span>
+            <small>My Pending Tickets</small>
+          </div>
+          <div class="stat-card stat-green" id="closedTodayCountCard" onclick="showTickets('closed')">
+            <span id="closedTodayNumber">0</span>
+            <small>Tickets Closed Today</small>
+          </div>
+        </div>
+
+        <div style="padding:10px;">
+          <button class="btn" onclick="refreshData()">🔄 Refresh</button>
+          <button class="btn btn-secondary" onclick="logout()">🚪 Logout</button>
+        </div>
+      </div>
+
+      <!-- Ticket List -->
+      <div class="ticket-list hidden" id="ticket-list">
+        <h2 style="color:var(--primary);" id="ticketListTitle">My Tickets</h2>
+        <button class="btn btn-secondary" onclick="showDashboard()">⬅ Home</button>
+        <input type="text" id="searchBox" placeholder="🔍 Search tickets..." oninput="renderTickets(currentView)">
+        <select id="closedDateFilter" class="hidden" onchange="filterClosedByDate()"></select>
+        <div id="tickets" style="margin-top:10px;"></div>
+      </div>
+
+      <!-- Ticket Details -->
+      <div class="ticket-details hidden" id="ticket-details">
+        <h2 style="color:var(--primary);">Ticket Details</h2>
+        <div id="details" class="card"></div>
+        <label><b>Close with reason:</b></label>
+        <select id="closeReason" onchange="toggleRemarksBox()"></select>
+        <textarea id="closeRemarks" class="hidden" placeholder="Add remarks..."></textarea>
+        <button class="btn" onclick="closeCurrentTicket()">✅ Close Ticket</button>
+        <button class="btn btn-secondary" onclick="backToList()">⬅ Back</button>
+      </div>
+
+    </div>
+  </div>
 
   <script>
-    const SCRIPT_URL = "YOUR_APPS_SCRIPT_URL"; // replace with your Apps Script Web App URL
-    const USERNAME = "john"; // replace with dynamic login if needed
+    let currentUser = "";
+    let currentTicket = null;
+    let allTickets = [];
+    let closedTodayTickets = [];
+    let closedTicketsByDate = {};
+    let currentView = "pending";
+    let seenTickets = JSON.parse(localStorage.getItem("seenTickets") || "[]");
 
-    async function loadTickets() {
-      try {
-        const res = await fetch(`${SCRIPT_URL}?action=tickets&user=${USERNAME}`);
-        const data = await res.json();
-        const container = document.getElementById("tickets");
-        container.innerHTML = "";
+    function showSpinner(){ document.getElementById("spinner").style.display="flex"; }
+    function hideSpinner(){ document.getElementById("spinner").style.display="none"; }
 
-        data.forEach(t => {
-          const div = document.createElement("div");
-          div.className = "ticket";
-          div.innerHTML = `
-            <b>Ticket:</b> ${t.ticketNo}<br>
-            <b>Problem:</b> ${t.problemType}<br>
-            <b>Status:</b> ${t.status}
-          `;
-          container.appendChild(div);
-        });
-      } catch(err) {
-        console.error(err);
-        document.getElementById("tickets").innerText = "Failed to load tickets.";
-      }
+    function showToast(title, message, duration=5000){
+      const toast = document.getElementById("toast");
+      toast.querySelector(".title").innerText = title;
+      toast.querySelector(".message").innerText = message;
+      toast.classList.add("show");
+      setTimeout(()=>{ toast.classList.remove("show"); }, duration);
     }
 
-    loadTickets();
+    function login() {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+      showSpinner();
+      google.script.run.withSuccessHandler(resp=>{
+        hideSpinner();
+        if(resp.success){
+          currentUser = resp.user;
+          document.getElementById("login-box").classList.add("hidden");
+          loadClosureReasons();
+          refreshData();
+          showDashboard();
+        } else {
+          document.getElementById("login-msg").innerText = resp.message || "Login failed.";
+        }
+      }).login(username,password);
+    }
+
+    function loadClosureReasons() {
+      google.script.run.withSuccessHandler(reasons => {
+        const select = document.getElementById("closeReason");
+        select.innerHTML = "";
+        reasons.forEach(r => {
+          const opt = document.createElement("option");
+          opt.value = r;
+          opt.textContent = r;
+          select.appendChild(opt);
+        });
+      }).getClosureReasons();
+    }
+
+    function refreshData() {
+      showSpinner();
+      google.script.run.withSuccessHandler(function(tickets){
+        hideSpinner();
+        localStorage.setItem("seenTickets", JSON.stringify(seenTickets));
+        allTickets = tickets;
+        const pending = tickets.filter(t=>t.status.toLowerCase()==="in progress");
+        document.getElementById("pendingNumber").innerText = pending.length;
+        const today = new Date().toDateString();
+        closedTodayTickets = tickets.filter(t=>{
+          if(t.status.toLowerCase()==="closed"){
+            const closedDate = new Date(t.closedAt).toDateString();
+            return closedDate === today;
+          }
+          return false;
+        });
+        document.getElementById("closedTodayNumber").innerText = closedTodayTickets.length;
+        closedTicketsByDate = {};
+        tickets.forEach(t=>{
+          if(t.status.toLowerCase()==="closed"){
+            const d = new Date(t.closedAt).toDateString();
+            if(!closedTicketsByDate[d]) closedTicketsByDate[d] = [];
+            closedTicketsByDate[d].push(t);
+          }
+        });
+      }).getTickets(currentUser);
+    }
+
+    function showDashboard(){
+      document.getElementById("dashboard").classList.remove("hidden");
+      document.getElementById("ticket-list").classList.add("hidden");
+      document.getElementById("ticket-details").classList.add("hidden");
+    }
+
+    function showTickets(type){
+      currentView = type;
+      document.getElementById("dashboard").classList.add("hidden");
+      document.getElementById("ticket-list").classList.remove("hidden");
+      document.getElementById("ticket-details").classList.add("hidden");
+      renderTickets(type);
+    }
+
+    function renderTickets(type){
+  const container = document.getElementById("tickets");
+  container.innerHTML = "";
+  const search = document.getElementById("searchBox").value.toLowerCase();
+  let tickets = [];
+  const filter = document.getElementById("closedDateFilter");
+
+  document.getElementById("closedDateFilter").classList.add("hidden");
+
+  if(type==="pending"){
+    tickets = allTickets.filter(t=>t.status.toLowerCase()==="in progress");
+    document.getElementById("ticketListTitle").innerText="Pending Tickets";
+  } else if(type==="closed"){
+    document.getElementById("closedDateFilter").classList.remove("hidden");
+    
+    const todayStr = new Date().toDateString(); // Only today
+    tickets = closedTicketsByDate[todayStr] || [];
+
+    // Populate dropdown with only today
+    filter.innerHTML = "";
+    if(tickets.length > 0){
+      const opt = document.createElement("option");
+      opt.value = todayStr;
+      opt.textContent = todayStr + " (" + tickets.length + ")";
+      filter.appendChild(opt);
+    }
+    document.getElementById("ticketListTitle").innerText="Closed Tickets";
+  }
+
+  tickets = tickets.filter(t=>
+    t.ticketNo.toLowerCase().includes(search) ||
+    t.problemType.toLowerCase().includes(search) ||
+    t.forOperator.toLowerCase().includes(search)
+  );
+
+  tickets.forEach(t=>{
+    const div=document.createElement("div");
+    div.className="card";
+    div.innerHTML=`<h3>${t.ticketNo}</h3>
+                   <p><b>Problem:</b> ${t.problemType}</p>
+                   <p><b>Operator:</b> ${t.forOperator}</p>
+                   <p><b>Status:</b> ${t.status}</p>`;
+    div.onclick=()=>showTicketDetails(t);
+    container.appendChild(div);
+  });
+}
+
+
+    function filterClosedByDate(){
+      const date = document.getElementById("closedDateFilter").value;
+      const tickets = closedTicketsByDate[date] || [];
+      const container = document.getElementById("tickets");
+      container.innerHTML="";
+      tickets.forEach(t=>{
+        const div=document.createElement("div");
+        div.className="card";
+        div.innerHTML=`<h3>${t.ticketNo}</h3>
+                       <p><b>Problem:</b> ${t.problemType}</p>
+                       <p><b>Operator:</b> ${t.forOperator}</p>
+                       <p><b>Status:</b> ${t.status}</p>`;
+        div.onclick=()=>showTicketDetails(t);
+        container.appendChild(div);
+      });
+    }
+
+    function showTicketDetails(ticket){
+      currentTicket=ticket;
+      document.getElementById("ticket-list").classList.add("hidden");
+      document.getElementById("ticket-details").classList.remove("hidden");
+      const details = document.getElementById("details");
+      details.innerHTML = `
+        <p><b>Ticket No:</b> ${ticket.ticketNo}</p>
+        <p><b>Problem Type:</b> ${ticket.problemType}</p>
+        <p><b>Operator:</b> ${ticket.forOperator}</p>
+        <p><b>Status:</b> ${ticket.status}</p>
+        <p><b>Description:</b> ${ticket.description || "N/A"}</p>
+      `;
+    }
+
+    function toggleRemarksBox(){
+      document.getElementById("closeRemarks").classList.remove("hidden");
+    }
+
+    function closeCurrentTicket(){
+      if(!currentTicket) return;
+      const reason = document.getElementById("closeReason").value;
+      const comment = document.getElementById("closeRemarks").value;
+      showSpinner();
+      google.script.run.withSuccessHandler(resp=>{
+        hideSpinner();
+        if(resp.success){
+          showToast("Ticket Closed", currentTicket.ticketNo + " closed successfully!");
+          refreshData();
+          showTickets("pending");
+        } else {
+          alert(resp.message);
+        }
+      }).closeTicket(currentTicket.ticketNo, reason, comment);
+    }
+
+    function backToList(){
+      document.getElementById("ticket-list").classList.remove("hidden");
+      document.getElementById("ticket-details").classList.add("hidden");
+    }
+
+    function logout(){
+      currentUser="";
+      document.getElementById("login-box").classList.remove("hidden");
+      document.getElementById("dashboard").classList.add("hidden");
+      document.getElementById("ticket-list").classList.add("hidden");
+      document.getElementById("ticket-details").classList.add("hidden");
+    }
   </script>
 </body>
 </html>
